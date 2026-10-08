@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "node scripts/write-config.js",
-    "dev": "node scripts/write-config.js && npx --yes serve public"
+    "dev": "node scripts/write-config.js && npx --yes serve public",
+    "expert": "node scripts/fetch-results.js && node scripts/build-expert.js"
   }
 }

@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-database-compat.js"></script>
 <script src="config.js"></script>
+<script src="expert.js"></script>
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
@@ -410,11 +411,14 @@ const PRESETS = [["1990-1999","90's"],["2000-2009","00's"],["2010-2019","10's"],
 const ALLES = [];
 COUREURS.forEach((p,i) => ALLES.push({...p, id:"p"+i}));
 VRAGEN.forEach((v,i) => ALLES.push({...v, type:"v", id:"v"+i}));
+const EXPERT = (window.EXPERT_VRAGEN || []).map(([jaar, antwoord, vraag, hints, alias]) => ({jaar, antwoord, vraag, hints, alias, expert:true}));
+EXPERT.forEach((v,i) => ALLES.push({...v, type:"v", id:"e"+i}));
+const TEMPO = {normaal:[[9,"Rustig, 9 s"],[7,"Normaal, 7 s"],[5,"Snel, 5 s"]], expert:[[15,"Rustig, 15 s"],[12,"Normaal, 12 s"],[9,"Snel, 9 s"]]};
 const BYID = Object.fromEntries(ALLES.map(x=>[x.id,x]));
 const SPELER = {};
 for (const p of ALLES) if (p.type==="p") SPELER[p.naam] = {alias:[...p.alias]};
 const inJaren = (x, van, tot) => x.type==="p" ? (x.van <= tot && Math.max(x.van, Math.min(x.tot, JMAX)) >= van) : (x.jaar >= van && x.jaar <= tot);
-const AANTAL = (van, tot, t) => ALLES.filter(x => x.type===t && inJaren(x, van, tot)).length;
+const AANTAL = (van, tot, t, expert = false) => ALLES.filter(x => x.type===t && !!x.expert===expert && inJaren(x, van, tot)).length;
 const antwoordVan = x => x.type==="p" ? x.naam : x.antwoord;
 const jarenLabel = (van, tot) => van === tot ? String(van) : `${van}–${tot}`;
 
@@ -432,10 +436,10 @@ function isGoed(tekst, item){
   const t = norm(tekst); if (!t) return false;
   const naam = antwoordVan(item);
   return [naam, ...((SPELER[naam]||{}).alias||[]), ...(item.alias||[])].map(norm)
-    .some(a => t===a || (a.length>=5 && lev(t,a) <= (a.length>=10?2:1)));
+    .some(a => t===a || (a.length>=5 && !/\d/.test(a) && lev(t,a) <= (a.length>=10?2:1)));
 }
-function bouwRondes(n, van, tot){
-  const inE = x => inJaren(x, van, tot);
+function bouwRondes(n, van, tot, expert){
+  const inE = x => !!x.expert===expert && inJaren(x, van, tot);
   const p = shuffle(ALLES.filter(x=>x.type==="p" && inE(x))), v = shuffle(ALLES.filter(x=>x.type==="v" && inE(x))), uit = [], gebruikt = new Set();
   const pak = lijst => { const i = lijst.findIndex(x=>!gebruikt.has(antwoordVan(x))); if (i<0) return null; const x = lijst.splice(i,1)[0]; gebruikt.add(antwoordVan(x)); return x; };
   for (let i=0; uit.length<n; i++){ const x = (i%2===1 ? pak(v) : null) || pak(p) || pak(v); if (!x) break; uit.push(x.id); }
@@ -527,7 +531,7 @@ function vulHS(){
 }
 async function bewaarScores(){
   if (!RTDB || !H) return;
-  const rondes = H.volgorde.length, spelers = H.st.length, cat = hsCat(spelers), era = jarenLabel(setup.van, setup.tot);
+  const rondes = H.volgorde.length, spelers = H.st.length, cat = hsCat(spelers), era = niveauLabel();
   kiesHS(cat);
   const uid = await aangemeld; let mislukt = !uid;
   for (const x of H.st){
@@ -548,7 +552,9 @@ let S = null;          // spelstaat zoals iedereen hem ziet
 let peers = [];
 let lokaal = {rid:-1, lvl:-1, start:0};
 let ui = {cooldown:0, ingestuurd:-1, actieKey:""};
-const setup = {rondes:15, tempo:7, meespelen:true, van:JMIN, tot:JMAX};
+const setup = {rondes:15, tempo:7, meespelen:true, van:JMIN, tot:JMAX, niveau:"normaal"};
+const isExpert = () => setup.niveau === "expert";
+const niveauLabel = () => (isExpert() ? "Expert " : "") + jarenLabel(setup.van, setup.tot);
 
 async function verbind(c){
   NR = null; verbonden = true;
@@ -590,13 +596,13 @@ function zetStaat(s){
 /* ---------- Spelmotor (host) ---------- */
 function publiceer(){
   const s = {fase:H.fase, rid:H.rid, nr:H.nr, tot:H.volgorde.length || setup.rondes, item:H.item, lvl:H.lvl, max:H.max,
-             tempo:H.tempo, win:H.win, st:H.st.slice(0,30), host:ik.naam, jaren:jarenLabel(setup.van, setup.tot)};
+             tempo:H.tempo, win:H.win, st:H.st.slice(0,30), host:ik.naam, jaren:niveauLabel()};
   zetStaat(s);
   if (NR) NR.presence({rol:"host", naam:ik.naam, spel:s}).catch(()=>{});
   renderAlles();
 }
 function startSpel(){
-  H.volgorde = bouwRondes(setup.rondes, setup.van, setup.tot); H.tempo = setup.tempo; H.nr = 0; scoreFout = false;
+  H.volgorde = bouwRondes(setup.rondes, setup.van, setup.tot, isExpert()); H.tempo = setup.tempo; H.nr = 0; scoreFout = false;
   H.st.forEach(x => x.s = 0);
   volgendeRonde();
 }
@@ -683,6 +689,10 @@ app.addEventListener("click", e => {
   else if (a === "join") meedoen();
   else if (a === "rondes"){ setup.rondes = +v; renderAlles(); }
   else if (a === "tempo"){ setup.tempo = +v; renderAlles(); }
+  else if (a === "niveau" && v !== setup.niveau){
+    const stand = TEMPO[setup.niveau].findIndex(([s]) => s === setup.tempo);
+    setup.niveau = v; setup.tempo = TEMPO[v][stand < 0 ? 1 : stand][0]; publiceer();
+  }
   else if (a === "jaren"){ const [x,y] = v.split("-").map(Number); setup.van = x; setup.tot = y; renderAlles(); }
   else if (a === "hstab"){ kiesHS(v); }
   else if (a === "mee"){
@@ -731,7 +741,7 @@ function paneelPaspoort(r, L, open){
            : '<div class="tt-club"><span class="tt-hidden">▒▒▒▒▒▒▒</span><span class="tt-hidden">▒▒▒▒▒▒▒▒▒▒▒▒</span></div>'.repeat(3)}`;
 }
 function paneelVraag(r, L, open){
-  return `<div class="tt-band roze"><span class="dh">QUIZVRAAG</span></div>
+  return `<div class="tt-band roze"><span class="dh">${r.expert ? "EXPERTVRAAG" : "QUIZVRAAG"}</span></div>
     <p class="tt-vraag">${esc(r.vraag)}</p>
     ${r.hints.map((h,i) => rij(`Hint ${i+1}`, (open || L >= i+2) ? h : null, "y")).join("")}`;
 }
@@ -748,8 +758,8 @@ function jaarOpties(huidig){
   let o = ""; for (let j = JMIN; j <= JMAX; j++) o += `<option value="${j}" ${j===huidig?"selected":""}>${j}</option>`; return o;
 }
 function telTekst(){
-  const c = AANTAL(setup.van, setup.tot, "p"), v = AANTAL(setup.van, setup.tot, "v"), n = c + v;
-  return `<p class="hint">${c} coureurs en ${v} vragen in ${jarenLabel(setup.van, setup.tot)}.</p>` +
+  const c = isExpert() ? 0 : AANTAL(setup.van, setup.tot, "p"), v = AANTAL(setup.van, setup.tot, "v", isExpert()), n = c + v;
+  return `<p class="hint">${isExpert() ? `${v} expertvragen` : `${c} coureurs en ${v} vragen`} in ${jarenLabel(setup.van, setup.tot)}.</p>` +
     (n < setup.rondes ? `<p class="fout">Te weinig voor ${setup.rondes} rondes: het spel wordt ${n} rondes.</p>` : "");
 }
 function seg(act, opties, huidig){
@@ -766,6 +776,7 @@ function renderStart(fout = ""){
   app.innerHTML = `<section class="tt">${kop("")}
       <div class="tt-band"><span class="dh">RAAD DE COUREUR</span></div>
       <p class="c">Formule 1, ${JMIN} tot nu. ${COUREURS.length} coureurs en ${VRAGEN.length} weetjes. Kies straks je seizoenen.</p>
+      ${EXPERT.length ? `<p class="c">Echte kenner? Kies in de lobby Expert: ${EXPERT.length} vragen uit de officiële uitslagen (bron: Jolpica F1).</p>` : ""}
       <p>Iedereen speelt op zijn eigen telefoon. De hints komen één voor één binnen.</p>
       <p>Typ het antwoord: meestal een coureur, soms een team of circuit. Wie het als eerste goed heeft, pakt de punten.</p>
       <p class="g">Hoe eerder je hem hebt, hoe meer punten.</p>
@@ -817,7 +828,9 @@ function renderLobby(){
         <div class="jaren"><label class="veld">Van<select id="jvan">${jaarOpties(setup.van)}</select></label><label class="veld">Tot en met<select id="jtot">${jaarOpties(setup.tot)}</select></label></div>
         ${telTekst()}</fieldset>
       <fieldset><legend>Rondes</legend>${seg("rondes",[[10,"10"],[15,"15"],[20,"20"]],setup.rondes)}</fieldset>
-      <fieldset><legend>Tijd per hint</legend>${seg("tempo",[[9,"Rustig, 9 s"],[7,"Normaal, 7 s"],[5,"Snel, 5 s"]],setup.tempo)}</fieldset>
+      <fieldset><legend>Niveau</legend>${seg("niveau",[["normaal","Normaal"],["expert","Expert"]],setup.niveau)}
+        <p class="hint">${isExpert() ? "Lastige vragen uit de officiële uitslagen: wie werd tweede, wie stond op de eerste startplek, wie won zijn eerste race." : "Bekende coureurs en weetjes."}</p></fieldset>
+      <fieldset><legend>Tijd per hint</legend>${seg("tempo",TEMPO[setup.niveau],setup.tempo)}</fieldset>
       <fieldset><legend>Dit toestel</legend>${seg("mee",[[1,"Ik speel mee"],[0,"Alleen als scherm"]],setup.meespelen?1:0)}</fieldset>
       <div class="knoppen"><button class="knop hoofd" data-act="start" ${S.st.length?"":"disabled"}>Start het spel</button><button class="knop stil" data-act="verlaten">Stoppen</button></div>`
       : `<div class="knoppen"><button class="knop stil" data-act="verlaten">Verlaten</button></div>`}
