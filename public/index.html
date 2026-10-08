@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Raad de coureur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;800&family=VT323&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-database-compat.js"></script>
+<script src="config.js"></script>
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
+:root{
+  box-sizing:border-box;
+  --page:#e4e2df; --ink:#1a1414; --muted:#5d5452; --line:#c4bdb9; --surface:#f1efed; --bad:#b3261e; --good:#1d6b34;
+  --tt-y:#ffff00; --tt-c:#00ffff; --tt-g:#00ff00; --tt-m:#ff00ff; --tt-r:#ff4040; --tt-b:#1f3dff; --tt-w:#ffffff;
+  --ui:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --tt:"VT323","Courier New",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--page:#131111;--ink:#ece6e4;--muted:#ab9f9c;--line:#3a3030;--surface:#1e1a1a;--bad:#ff8a80;--good:#7ddc8f;color-scheme:dark;}
+}
+:root[data-theme="dark"]{--page:#131111;--ink:#ece6e4;--muted:#ab9f9c;--line:#3a3030;--surface:#1e1a1a;--bad:#ff8a80;--good:#7ddc8f;color-scheme:dark;}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--page);color:var(--ink);font-family:var(--ui);font-size:19px;line-height:1.3}
+#app{max-width:760px;margin:0 auto;padding:14px 14px 28px;display:flex;flex-direction:column;gap:14px}
+
+/* Teletekst-scherm */
+.tt{background:#000;box-shadow:inset 0 6px 0 #e10600;color:var(--tt-w);font-family:var(--tt);font-size:clamp(21px,4.8vw,31px);line-height:1.12;
+  padding:.45em .6em .6em;border:10px solid #262626;border-radius:16px;overflow-wrap:anywhere}
+.tt p{margin:.35em 0}
+.y{color:var(--tt-y)}.c{color:var(--tt-c)}.g{color:var(--tt-g)}.m{color:var(--tt-m)}.r{color:var(--tt-r)}.w{color:var(--tt-w)}
+.tt-head{display:flex;justify-content:space-between;gap:.6em;flex-wrap:wrap}
+.tt-band{background:var(--tt-b);color:var(--tt-y);margin:.3em -.6em .45em;padding:0 .6em}
+.tt-band.groen{background:var(--tt-g);color:#000}
+.tt-band.roze{background:var(--tt-m);color:#000}
+.dh{display:block;height:2.05em;line-height:1;transform:scaleY(2);transform-origin:0 0;padding-top:.02em}
+.tt-row{display:grid;grid-template-columns:4.6em 1fr;gap:.5em;margin:.12em 0}
+.tt-lab{color:var(--tt-c)}
+.tt-sub{color:var(--tt-c);margin-top:.35em}
+.tt-club{display:grid;grid-template-columns:6.2em 1fr;gap:.5em}
+.jaren{display:flex;gap:10px;flex-wrap:wrap}.jaren select{font:inherit;font-size:21px;font-weight:600;padding:7px 10px;border:2px solid var(--line);border-radius:4px;background:var(--page);color:var(--ink)}
+.tt-hidden{color:#4a4a4a}
+.tt-vraag{color:var(--tt-w);font-size:1.08em}
+.tt-foot{display:flex;justify-content:space-between;gap:.6em;margin-top:.5em;flex-wrap:wrap}
+.dim{color:#2b2b2b}
+.tt-naam{color:var(--tt-y);font-size:1.75em;line-height:1.05;margin:.15em 0 .2em}
+.tt-code{color:var(--tt-y);font-size:3.4em;line-height:1;letter-spacing:.18em;margin:.1em 0 .15em}
+.dict{display:flex;align-items:center;gap:8px;margin:2px 0 6px}.dict input{width:20px;height:20px}
+.egg{touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.egg-ans{font-size:.5em;color:var(--tt-c);opacity:.75;letter-spacing:.02em;vertical-align:.1em}
+.flash{animation:flash 1s steps(1) 3}
+@keyframes flash{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.flash{animation:none}}
+
+/* Algemene bediening */
+button{font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+h2{font-size:23px;font-weight:800;margin:0 0 4px}
+.knoppen{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.knop{font-family:var(--ui);font-size:20px;font-weight:600;padding:9px 16px;border:2px solid var(--ink);background:transparent;color:var(--ink);border-radius:4px}
+.knop.hoofd{background:var(--ink);color:var(--page)}
+.knop:disabled{opacity:.45;cursor:default}
+.knop.stil{border-color:transparent;color:var(--muted);padding-left:6px;padding-right:6px}
+.instel{display:flex;flex-direction:column;gap:16px}
+.twee{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:560px){.twee{grid-template-columns:1fr 1fr}}
+.blok{border:2px solid var(--line);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
+.veld{display:flex;flex-direction:column;gap:4px;font-weight:600}
+.veld input,.raad input{font:inherit;font-size:22px;font-weight:600;padding:9px 11px;border:2px solid var(--line);border-radius:4px;background:var(--page);color:var(--ink);min-width:0}
+#code{text-transform:uppercase;letter-spacing:.2em;font-size:26px}
+.hint{color:var(--muted);font-size:17px;margin:0}
+.fout{color:var(--bad);font-weight:600;margin:0}
+.goed{color:var(--good);font-weight:600;margin:0}
+fieldset{border:0;padding:0;margin:0}
+legend{font-weight:800;font-size:23px;padding:0;margin-bottom:6px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{padding:7px 14px;font-size:19px;font-weight:600;border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:4px}
+.seg button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--page)}
+
+/* Antwoord typen */
+.raad{display:flex;gap:8px}
+.raad input{flex:1;font-size:24px;padding:12px}
+.raad .knop{font-size:22px;padding:10px 20px}
+.melding{min-height:1.4em;margin:6px 0 0;font-size:20px;font-weight:600}
+.uitslag{font-size:24px;font-weight:800;margin:0 0 8px}
+
+/* Stand */
+.stand{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.stand li{display:grid;grid-template-columns:14px 1fr auto;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;background:var(--surface);font-size:21px;font-weight:600}
+.stand li.ik{outline:2px solid var(--ink)}
+.stand .chip{width:14px;height:14px;border-radius:2px;background:var(--c)}
+.stand .pt{font-weight:800;font-size:24px}
+.stand .weg{color:var(--muted);font-weight:500;font-size:16px}
+.banner{background:var(--bad);color:#fff;padding:8px 12px;border-radius:4px;font-weight:600;margin:0}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+/* ---------- Database: coureurs en vragen ---------- */
+const NU = 2026;
+const D = (naam, alias, jaar, land, van, tot, weetje, teams) => ({type:"p", naam, alias, jaar, land, van, tot, weetje,
+  clubs: teams.split(";").map(s => { s = s.trim(); const i = s.indexOf(" "); return [s.slice(0,i), s.slice(i+1)]; })});
+const COUREURS = [
+D("Michael Schumacher",["schumacher","schumi","michael"],1969,"Duitsland",1991,2012,"Debuteerde in 1991 in België voor Jordan","1991–1995 Benetton; 1996–2006 Ferrari; 2010–2012 Mercedes"),
+D("Rubens Barrichello",["barrichello","rubinho"],1972,"Brazilië",1993,2011,"Reed meer dan 300 Grands Prix","2006–2008 Honda; 2009 Brawn; 2010–2011 Williams"),
+D("Mika Häkkinen",["hakkinen","hakkinen mika","mika"],1968,"Finland",1991,2001,"Werd twee keer wereldkampioen met hetzelfde team","1991–1992 Lotus; 1993–2001 McLaren"),
+D("David Coulthard",["coulthard","dc"],1971,"Schotland",1994,2008,"Werd na zijn loopbaan tv-analist bij de BBC","1994–1995 Williams; 1996–2004 McLaren; 2005–2008 Red Bull"),
+D("Juan Pablo Montoya",["montoya","jpm"],1975,"Colombia",2001,2006,"Won ook twee keer de Indianapolis 500","2001–2004 Williams; 2005–2006 McLaren"),
+D("Ralf Schumacher",["ralf","ralf schumacher"],1975,"Duitsland",1997,2007,"Zijn oudere broer was nog succesvoller","1997–1998 Jordan; 1999–2004 Williams; 2005–2007 Toyota"),
+D("Jacques Villeneuve",["villeneuve"],1971,"Canada",1996,2006,"Werd in 1997 wereldkampioen","1996–1998 Williams; 1999–2003 BAR; 2005–2006 Sauber"),
+D("Eddie Irvine",["irvine"],1965,"Noord-Ierland",1993,2002,"Werd in 1999 tweede in het kampioenschap","1993–1995 Jordan; 1996–1999 Ferrari; 2000–2002 Jaguar"),
+D("Jos Verstappen",["jos","jos the boss"],1972,"Nederland",1994,2003,"Zijn auto vloog in 1994 bij een pitstop in brand","1998 Stewart; 2000–2001 Arrows; 2003 Minardi"),
+D("Nick Heidfeld",["heidfeld","quick nick"],1977,"Duitsland",2000,2011,"Stond 13 keer op het podium, maar won nooit","2006–2009 BMW Sauber; 2010 Sauber; 2011 Renault"),
+D("Jarno Trulli",["trulli"],1974,"Italië",1997,2011,"Heeft naast het racen een eigen wijngoed","2002–2004 Renault; 2005–2009 Toyota; 2010–2011 Lotus"),
+D("Giancarlo Fisichella",["fisichella","fisico"],1973,"Italië",1996,2009,"Reed in 2009 de laatste races van het jaar voor Ferrari","2005–2007 Renault; 2008–2009 Force India; 2009 Ferrari"),
+D("Takuma Sato",["sato"],1977,"Japan",2002,2008,"Won later twee keer de Indianapolis 500","2002 Jordan; 2003–2005 BAR; 2006–2008 Super Aguri"),
+D("Fernando Alonso",["alonso","nando"],1981,"Spanje",2001,NU,"Debuteerde in 2001 bij Minardi","2015–2018 McLaren; 2021–2022 Alpine; 2023– Aston Martin"),
+D("Kimi Räikkönen",["raikkonen","kimi raikkonen","iceman","kimi"],1979,"Finland",2001,2021,"Bijnaam: The Iceman","2012–2013 Lotus; 2014–2018 Ferrari; 2019–2021 Alfa Romeo"),
+D("Jenson Button",["button","jb"],1980,"Engeland",2000,2017,"Debuteerde in 2000 als twintigjarige bij Williams","2006–2008 Honda; 2009 Brawn; 2010–2017 McLaren"),
+D("Felipe Massa",["massa"],1981,"Brazilië",2002,2017,"Was in 2008 een halve minuut lang wereldkampioen","2002–2005 Sauber; 2006–2013 Ferrari; 2014–2017 Williams"),
+D("Christijan Albers",["albers"],1979,"Nederland",2005,2007,"Reed eerder in de DTM voor Mercedes","2005 Minardi; 2006 Midland; 2007 Spyker"),
+D("Robert Doornbos",["doornbos"],1981,"Nederland",2005,2006,"Ging na de F1 racen in de Champ Car","2005 Minardi; 2006 Red Bull"),
+D("Lewis Hamilton",["hamilton","lewis","sir lewis"],1985,"Engeland",2007,NU,"Won meer Grands Prix dan wie ook","2007–2012 McLaren; 2013–2024 Mercedes; 2025– Ferrari"),
+D("Heikki Kovalainen",["kovalainen"],1981,"Finland",2007,2013,"Won één Grand Prix: Hongarije 2008","2007 Renault; 2008–2009 McLaren; 2010–2013 Lotus/Caterham"),
+D("Robert Kubica",["kubica"],1984,"Polen",2006,2021,"Keerde acht jaar na een zwaar rallyongeluk terug in de F1","2006–2009 BMW Sauber; 2010 Renault; 2019 Williams"),
+D("Sebastian Vettel",["vettel","seb","baby schumi"],1987,"Duitsland",2007,2022,"Gaf al zijn auto's een vrouwennaam","2009–2014 Red Bull; 2015–2020 Ferrari; 2021–2022 Aston Martin"),
+D("Nico Rosberg",["rosberg","nico"],1985,"Duitsland",2006,2016,"Zijn vader Keke was ook wereldkampioen","2006–2009 Williams; 2010–2016 Mercedes"),
+D("Mark Webber",["webber"],1976,"Australië",2002,2013,"Ging na de F1 endurance racen bij Porsche","2003–2004 Jaguar; 2005–2006 Williams; 2007–2013 Red Bull"),
+D("Kamui Kobayashi",["kobayashi"],1986,"Japan",2009,2014,"Werd in 2012 derde in zijn thuisrace","2009 Toyota; 2010–2012 Sauber; 2014 Caterham"),
+D("Pastor Maldonado",["maldonado"],1985,"Venezuela",2011,2015,"Won één Grand Prix: Spanje 2012","2011–2013 Williams; 2014–2015 Lotus"),
+D("Romain Grosjean",["grosjean"],1986,"Frankrijk",2009,2020,"Ontsnapte in 2020 uit een brandend wrak","2009 Renault; 2012–2015 Lotus; 2016–2020 Haas"),
+D("Giedo van der Garde",["van der garde","giedo"],1985,"Nederland",2013,2013,"Stapte in 2015 naar de rechter voor een raceplek","2013 Caterham"),
+D("Daniel Ricciardo",["ricciardo","danny ric"],1989,"Australië",2011,2024,"Vierde podiums met een shoey","2019–2020 Renault; 2021–2022 McLaren; 2023–2024 AlphaTauri/RB"),
+D("Valtteri Bottas",["bottas"],1989,"Finland",2013,NU,"Was in 2025 reservecoureur bij zijn oude team","2017–2021 Mercedes; 2022–2024 Alfa Romeo/Sauber; 2026– Cadillac"),
+D("Sergio Pérez",["perez","checo","sergio perez"],1990,"Mexico",2011,NU,"Bijnaam: Checo","2014–2020 Force India/Racing Point; 2021–2024 Red Bull; 2026– Cadillac"),
+D("Kevin Magnussen",["magnussen","k mag"],1992,"Denemarken",2014,2024,"Zijn vader Jan reed ook in de F1","2014 McLaren; 2016 Renault; 2017–2024 Haas"),
+D("Daniil Kvyat",["kvyat"],1994,"Rusland",2014,2020,"Kreeg de bijnaam Torpedo","2014 Toro Rosso; 2015–2016 Red Bull; 2016–2020 Toro Rosso/AlphaTauri"),
+D("Nico Hülkenberg",["hulkenberg","hulk","nico hulkenberg"],1987,"Duitsland",2010,NU,"Won in 2015 de 24 uur van Le Mans","2023–2024 Haas; 2025 Sauber; 2026– Audi"),
+D("Max Verstappen",["verstappen","max","mad max"],1997,"Nederland",2015,NU,"Jongste Grand Prix-winnaar ooit","2015–2016 Toro Rosso; 2016– Red Bull"),
+D("Carlos Sainz",["sainz","carlos","smooth operator"],1994,"Spanje",2015,NU,"Zijn vader won meerdere keren de Dakar Rally","2019–2020 McLaren; 2021–2024 Ferrari; 2025– Williams"),
+D("Esteban Ocon",["ocon"],1996,"Frankrijk",2016,NU,"Won in 2021 de Grand Prix van Hongarije","2017–2018 Force India; 2020–2024 Renault/Alpine; 2025– Haas"),
+D("Pierre Gasly",["gasly"],1996,"Frankrijk",2017,NU,"Won in 2020 verrassend in Monza","2019 Red Bull; 2019–2022 Toro Rosso/AlphaTauri; 2023– Alpine"),
+D("Lance Stroll",["stroll"],1998,"Canada",2017,NU,"Zijn vader is eigenaar van het team","2017–2018 Williams; 2019–2020 Racing Point; 2021– Aston Martin"),
+D("Charles Leclerc",["leclerc","charles"],1997,"Monaco",2018,NU,"Won in 2024 eindelijk zijn thuisrace","2018 Sauber; 2019– Ferrari"),
+D("Lando Norris",["norris","lando"],1999,"Engeland",2019,NU,"Won zijn eerste Grand Prix in Miami","2019– McLaren"),
+D("George Russell",["russell","george","mr saturday"],1998,"Engeland",2019,NU,"Viel in 2020 één keer in voor Hamilton","2019–2021 Williams; 2022– Mercedes"),
+D("Alexander Albon",["albon","alex albon"],1996,"Thailand",2019,NU,"Rijdt onder Thaise vlag, maar is in Londen geboren","2019 Toro Rosso; 2019–2020 Red Bull; 2022– Williams"),
+D("Yuki Tsunoda",["tsunoda","yuki"],2000,"Japan",2021,2025,"Werd in 2025 na twee races gepromoveerd","2021–2025 AlphaTauri/RB; 2025 Red Bull"),
+D("Zhou Guanyu",["zhou","guanyu","guanyu zhou"],1999,"China",2022,2024,"Eerste Chinese coureur met een vaste stoel","2022–2024 Alfa Romeo/Sauber"),
+D("Nyck de Vries",["de vries","nyck"],1995,"Nederland",2022,2023,"Werd in 2021 kampioen in de Formule E","2022 Williams; 2023 AlphaTauri"),
+D("Oscar Piastri",["piastri","oscar"],2001,"Australië",2023,NU,"Zijn manager is oud-coureur Mark Webber","2023– McLaren"),
+D("Liam Lawson",["lawson"],2002,"Nieuw-Zeeland",2023,NU,"Werd in 2025 na twee races teruggezet","2023–2024 AlphaTauri/RB; 2025 Red Bull; 2025– Racing Bulls"),
+D("Oliver Bearman",["bearman","ollie bearman"],2005,"Engeland",2024,NU,"Debuteerde als 18-jarige als invaller","2024 Ferrari; 2024 Haas; 2025– Haas"),
+D("Kimi Antonelli",["antonelli","andrea kimi antonelli","kimi antonelli"],2006,"Italië",2025,NU,"Volgde Lewis Hamilton op","2025– Mercedes"),
+D("Isack Hadjar",["hadjar"],2004,"Frankrijk",2025,NU,"Crashte in zijn eerste race al in de opwarmronde","2025 Racing Bulls; 2026– Red Bull"),
+D("Franco Colapinto",["colapinto","franco"],2003,"Argentinië",2024,NU,"Eerste Argentijnse F1-coureur sinds 2001","2024 Williams; 2025– Alpine"),
+D("Gabriel Bortoleto",["bortoleto"],2004,"Brazilië",2025,NU,"Werd in 2024 kampioen in de Formule 2","2025 Sauber; 2026– Audi"),
+D("Arvid Lindblad",["lindblad"],2007,"Engeland",2026,NU,"Debuteerde in 2026 als enige rookie","2026– Racing Bulls")
+];
+const V = (jaar, antwoord, vraag, hints, alias) => ({jaar, antwoord, vraag, hints, alias});
+const VRAGEN = [
+V(2000,"Michael Schumacher","Wie bezorgde Ferrari in 2000 de eerste rijderstitel sinds 1979?",["Hij kwam in 1996 over van Benetton","Hij komt uit Duitsland"]),
+V(2001,"Juan Pablo Montoya","Wie won in 2001 in Monza zijn eerste Grand Prix voor Williams?",["Hij was dat jaar debutant","Hij komt uit Colombia"]),
+V(2002,"Rubens Barrichello","Welke coureur liet in Oostenrijk 2002 op teamorder in de laatste meters zijn teamgenoot voorbij?",["Hij reed voor Ferrari","Hij komt uit Brazilië"]),
+V(2003,"Kimi Räikkönen","Wie verloor in 2003 de titel met slechts twee punten verschil van Michael Schumacher?",["Hij reed voor McLaren","Hij komt uit Finland"]),
+V(2003,"Giancarlo Fisichella","Wie won de chaotische GP van Brazilië 2003, een zege die pas dagen later aan hem werd toegekend?",["Hij reed voor Jordan","Hij komt uit Italië"]),
+V(2004,"Jarno Trulli","Wie won in 2004 de Grand Prix van Monaco voor Renault?",["Het was zijn enige Grand Prix-zege","Hij komt uit Italië"]),
+V(2004,"Michael Schumacher","Wie won in 2004 dertien van de achttien races?",["Het werd zijn zevende titel","Hij reed voor Ferrari"]),
+V(2005,"Indianapolis","Op welk circuit stonden in 2005 maar zes auto's aan de start, omdat de Michelin-teams niet reden?",["Het was de GP van de Verenigde Staten","Alleen Ferrari, Jordan en Minardi reden"],["indy","indianapolis motor speedway","verenigde staten","amerika","usa"]),
+V(2005,"Christijan Albers","Welke Nederlander scoorde punten in de GP van de Verenigde Staten van 2005, waar maar zes auto's meededen?",["Hij reed voor Minardi","Hij werd vijfde"]),
+V(2005,"Fernando Alonso","Wie werd in 2005 de jongste wereldkampioen tot dan toe?",["Hij reed voor Renault","Hij komt uit Spanje"]),
+V(2006,"Jenson Button","Wie won in 2006 voor Honda zijn eerste Grand Prix, in de regen van Hongarije?",["Hij startte als veertiende","Hij komt uit Engeland"]),
+V(2007,"Kimi Räikkönen","Wie werd in 2007 wereldkampioen met één punt voorsprong op beide McLaren-coureurs?",["Het was zijn eerste seizoen bij Ferrari","Hij komt uit Finland"]),
+V(2007,"Markus Winkelhock","Welke debutant leidde in 2007 de GP van Europa op de Nürburgring na een gok op regenbanden?",["Hij reed voor Spyker","Het was zijn enige Grand Prix"],["winkelhock"]),
+V(2007,"Spyker","Welk Nederlands team reed in 2007 in de Formule 1 met oranje auto's?",["Het nam het team van Midland over","Christijan Albers was een van de coureurs"],["spyker f1","spyker ferrari"]),
+V(2008,"Lewis Hamilton","Wie pakte in 2008 de titel in de laatste bochten van de laatste race in Brazilië?",["Hij reed voor McLaren","Hij haalde Timo Glock in"]),
+V(2008,"Sebastian Vettel","Wie werd in 2008 in Monza de jongste Grand Prix-winnaar tot dan toe?",["Hij reed voor Toro Rosso","Het regende flink"]),
+V(2008,"Singapore","Waar werd in 2008 de eerste nachtrace uit de F1-geschiedenis verreden?",["Fernando Alonso won hem","Later bleek een crash daar met opzet"],["marina bay","gp van singapore"]),
+V(2008,"Robert Kubica","Wie won in 2008 de GP van Canada, een jaar na een zware crash op hetzelfde circuit?",["Hij reed voor BMW Sauber","Hij komt uit Polen"]),
+V(2009,"Brawn GP","Welk team won in 2009, in zijn enige seizoen, beide wereldtitels?",["Het ontstond uit de resten van Honda","Jenson Button werd kampioen"],["brawn","brawn mercedes"]),
+V(2009,"Abu Dhabi","Waar werd in 2009 de eerste race verreden die bij daglicht begon en in het donker eindigde?",["Het circuit ligt op Yas Island","Het was de slotrace van het seizoen"],["yas marina","yas"]),
+V(2010,"Sebastian Vettel","Wie werd in 2010 kampioen, terwijl hij pas na de laatste race voor het eerst bovenaan het klassement stond?",["Hij reed voor Red Bull","Hij was 23 jaar"]),
+V(2011,"Jenson Button","Wie won de GP van Canada 2011, de langste race ooit, ondanks zes bezoeken aan de pits?",["Hij reed voor McLaren","Hij nam pas in de laatste ronde de leiding"]),
+V(2012,"Pastor Maldonado","Wie won in 2012 verrassend de GP van Spanje voor Williams?",["Het was Williams' eerste zege sinds 2004","Hij komt uit Venezuela"]),
+V(2012,"Zeven","Hoeveel verschillende winnaars waren er in de eerste zeven races van 2012?",["Pastor Maldonado was er een van","Het record staat nog altijd"],["7"]),
+V(2013,"Mark Webber","Welke coureur werd in 2013 in Maleisië tegen de teamorder in gepasseerd, bekend als 'Multi 21'?",["Zijn teamgenoot was Sebastian Vettel","Hij komt uit Australië"]),
+V(2013,"Giedo van der Garde","Welke Nederlander reed in 2013 een seizoen voor Caterham?",["Hij won in 2008 de Formule Renault 3.5","Hij is getrouwd met de dochter van Marcel Boekhoorn"]),
+V(2014,"Daniel Ricciardo","Wie won in 2014 als enige niet-Mercedes-coureur races?",["Het was zijn eerste jaar bij Red Bull","Hij komt uit Australië"]),
+V(2014,"Kevin Magnussen","Welke debutant stond in Australië 2014 meteen op het podium voor McLaren?",["Zijn vader reed ook in de F1","Hij komt uit Denemarken"]),
+V(2015,"Max Verstappen","Wie werd in 2015 met 17 jaar de jongste debutant uit de geschiedenis?",["Hij reed voor Toro Rosso","Hij had nog geen rijbewijs"]),
+V(2016,"Max Verstappen","Wie won in 2016 in Spanje meteen zijn eerste race voor een nieuw team?",["Hij was 18 jaar","De Mercedes-coureurs crashten in de eerste ronde"]),
+V(2016,"Nico Rosberg","Welke wereldkampioen stopte in 2016 vijf dagen na het binnenhalen van de titel?",["Hij reed voor Mercedes","Zijn vader was ook wereldkampioen"]),
+V(2017,"Lance Stroll","Wie werd in 2017 in Bakoe de jongste debutant ooit op het podium?",["Hij reed voor Williams","Hij komt uit Canada"]),
+V(2018,"Kimi Räikkönen","Wie won in Austin 2018 zijn eerste race in ruim vijf jaar?",["Hij reed voor Ferrari","Het werd zijn laatste Grand Prix-zege"]),
+V(2019,"Max Verstappen","Wie bezorgde Honda in Oostenrijk 2019 de eerste zege van het hybride tijdperk?",["Hij haalde Leclerc in de slotfase in","Hij reed voor Red Bull"]),
+V(2019,"Charles Leclerc","Wie won in 2019 in Monza, een week na zijn eerste zege in België?",["Hij reed voor Ferrari","Hij komt uit Monaco"]),
+V(2020,"Pierre Gasly","Wie won in 2020 verrassend de GP van Italië?",["Hij reed voor AlphaTauri","Hij komt uit Frankrijk"]),
+V(2020,"Romain Grosjean","Welke coureur ontsnapte in 2020 in Bahrein uit zijn brandende auto?",["Hij reed voor Haas","Hij komt uit Frankrijk"]),
+V(2020,"Sergio Pérez","Wie won in 2020 de GP van Sakhir, na in de eerste ronde achteraan te zijn beland?",["Hij reed voor Racing Point","Hij komt uit Mexico"]),
+V(2020,"George Russell","Wie viel in Sakhir 2020 in voor de zieke Lewis Hamilton?",["Hij reed eigenlijk voor Williams","Een lekke band kostte hem de zege"]),
+V(2021,"Max Verstappen","Wie pakte in Abu Dhabi 2021 in de laatste ronde de wereldtitel?",["Hij haalde Lewis Hamilton in","Hij reed voor Red Bull"]),
+V(2021,"Michael Masi","Welke wedstrijdleider lag onder vuur na de laatste ronde van Abu Dhabi 2021?",["Hij volgde in 2019 Charlie Whiting op","Hij komt uit Australië"],["masi"]),
+V(2021,"Esteban Ocon","Wie won in 2021 de chaotische GP van Hongarije?",["Hij reed voor Alpine","Fernando Alonso hield Hamilton lang achter zich"]),
+V(2021,"Zandvoort","Welk circuit keerde in 2021 na 36 jaar terug op de kalender?",["Max Verstappen won er dat jaar","Het heeft twee steile kombochten"],["circuit zandvoort","gp van nederland","nederland"]),
+V(2022,"Nyck de Vries","Wie werd in Monza 2022 als invaller negende bij zijn debuut?",["Hij verving Alexander Albon","Hij komt uit Friesland"]),
+V(2022,"Carlos Sainz","Wie won in 2022 op Silverstone zijn eerste Grand Prix?",["Hij reed voor Ferrari","Zijn vader won de Dakar Rally"]),
+V(2022,"Zhou Guanyu","Wie ging in 2022 bij de start op Silverstone ondersteboven over het grind?",["Hij reed voor Alfa Romeo","De halo redde hem"]),
+V(2023,"Max Verstappen","Wie won in 2023 negentien van de tweeëntwintig races?",["Hij werd voor de derde keer kampioen","Hij reed voor Red Bull"]),
+V(2023,"Carlos Sainz","Wie won in 2023 als enige niet-Red Bull-coureur een Grand Prix?",["Hij won in Singapore","Hij reed voor Ferrari"]),
+V(2023,"Las Vegas","Welke race keerde in 2023 voor het eerst sinds 1982 terug op de kalender?",["In de eerste training sloeg een putdeksel los","Er werd over de beroemde Strip gereden"],["vegas"]),
+V(2024,"Lewis Hamilton","Wie kondigde in 2024 aan na twaalf seizoenen over te stappen naar Ferrari?",["Hij reed sinds 2013 voor Mercedes","Hij won dat jaar nog op Silverstone"]),
+V(2024,"Lando Norris","Wie won in 2024 in Miami zijn eerste Grand Prix?",["Hij reed voor McLaren","Hij is geboren in Bristol"]),
+V(2024,"Charles Leclerc","Wie won in 2024 eindelijk de Grand Prix van Monaco?",["Hij reed voor Ferrari","Hij is er geboren"]),
+V(2024,"Oliver Bearman","Wie viel in 2024 als 18-jarige in Saoedi-Arabië in voor Carlos Sainz en werd zevende?",["Sainz had een blindedarmontsteking","Hij komt uit Engeland"]),
+V(2024,"McLaren","Welk team won in 2024 voor het eerst sinds 1998 het constructeurskampioenschap?",["Lando Norris won er dat jaar vier races voor","Het team zit in Woking"],["mclaren mercedes"]),
+V(2025,"Lando Norris","Wie werd in 2025 wereldkampioen, met twee punten voorsprong op Verstappen?",["Hij reed voor McLaren","Hij werd derde in de slotrace in Abu Dhabi"]),
+V(2025,"Nico Hülkenberg","Wie stond in 2025 op Silverstone eindelijk op het podium, na meer dan 200 races?",["Hij reed voor Sauber","Hij startte als negentiende"]),
+V(2025,"Yuki Tsunoda","Wie werd in 2025 na twee races naar Red Bull overgeheveld?",["Hij ruilde van plek met Liam Lawson","Hij komt uit Japan"]),
+V(2025,"Isack Hadjar","Welke debutant stond in 2025 op Zandvoort verrassend op het podium?",["Hij reed voor Racing Bulls","Hij komt uit Frankrijk"]),
+V(2020,"Lewis Hamilton","Wie evenaarde in 2020 het record van zeven wereldtitels?",["Hij pakte de titel in de regen van Turkije","Hij reed voor Mercedes"]),
+V(2020,"Lewis Hamilton","Wie won in 2020 op Silverstone, ondanks een lekke band in de laatste ronde?",["Hij reed voor Mercedes","Hij won er al voor de zevende keer"]),
+V(2020,"Mugello","Welk circuit, eigendom van Ferrari, stond in 2020 eenmalig op de kalender voor de 1000e GP van Ferrari?",["De race werd twee keer stilgelegd met een rode vlag","Het ligt in Toscane"],["toscane","gp van toscane"]),
+V(2021,"Spa","Op welk circuit werd in 2021 een 'race' van twee rondes achter de safety car verreden, voor halve punten?",["Het regende de hele dag","Max Verstappen kreeg de zege"],["spa francorchamps","belgie","gp van belgie"]),
+V(2021,"Copse","In welke bocht op Silverstone crashte Verstappen in 2021 na een aanraking met Hamilton?",["Het is de eerste snelle bocht na de start","Verstappen klapte met 51G op de bandenstapel"],["copse corner"]),
+V(2021,"Monza","Op welk circuit belandde de Red Bull van Verstappen in 2021 bovenop de Mercedes van Hamilton?",["De halo beschermde Hamilton","Daniel Ricciardo won die race"],["italie","gp van italie"]),
+V(2021,"Daniel Ricciardo","Wie bezorgde McLaren in 2021 in Monza de eerste zege sinds 2012?",["Lando Norris werd tweede","Hij komt uit Australië"]),
+V(2021,"Lando Norris","Wie verspeelde in Rusland 2021 zijn eerste zege toen het in de slotfase ging regenen?",["Hij weigerde naar binnen te komen voor regenbanden","Hij reed voor McLaren"]),
+V(2021,"Kimi Räikkönen","Welke wereldkampioen nam eind 2021 afscheid als recordhouder met de meeste starts?",["Hij reed toen voor Alfa Romeo","Hij werd in 2007 kampioen"]),
+V(2022,"Charles Leclerc","Wie won in 2022 de eerste race onder het nieuwe reglement, in Bahrein?",["Zijn teamgenoot werd tweede","Hij reed voor Ferrari"]),
+V(2022,"Porpoising","Hoe heette het stuiteren waar veel auto's in 2022 last van hadden?",["Het komt door het grondeffect","De naam verwijst naar bruinvissen"],["stuiteren","bouncing"]),
+V(2022,"Oscar Piastri","Welke coureur ontkende in 2022 via Twitter dat hij voor Alpine zou rijden?",["Hij tekende uiteindelijk bij McLaren","Hij komt uit Australië"]),
+V(2022,"Kevin Magnussen","Wie zette Haas in 2022 voor het eerst ooit op pole position?",["Het gebeurde in Brazilië","Hij was dat jaar teruggekeerd bij het team"]),
+V(2022,"George Russell","Wie won in 2022 in Brazilië zijn eerste Grand Prix?",["Het was de enige zege van zijn team dat jaar","Hij reed voor Mercedes"]),
+V(2022,"Sebastian Vettel","Welke viervoudig kampioen nam eind 2022 afscheid van de F1?",["Hij reed toen voor Aston Martin","Hij won zijn titels met Red Bull"]),
+V(2023,"Fernando Alonso","Welke coureur stond in 2023 als 41-jarige in zes van de eerste acht races op het podium?",["Hij reed voor Aston Martin","Hij was al twee keer wereldkampioen"]),
+V(2023,"Nyck de Vries","Welke Nederlander werd in 2023 na tien races vervangen door Daniel Ricciardo?",["Hij reed voor AlphaTauri","Hij was Formule E-kampioen"]),
+V(2023,"Liam Lawson","Wie viel in 2023 in voor de geblesseerde Ricciardo bij AlphaTauri?",["Ricciardo brak zijn hand op Zandvoort","Hij komt uit Nieuw-Zeeland"]),
+V(2023,"Qatar","In welk land werden coureurs in 2023 onwel door de hitte en luchtvochtigheid?",["Logan Sargeant gaf op","Esteban Ocon moest in zijn helm overgeven"],["losail","lusail"]),
+V(2023,"Oscar Piastri","Welke debutant won in 2023 de sprintrace in Qatar?",["Hij reed voor McLaren","Hij komt uit Australië"]),
+V(2024,"Carlos Sainz","Wie won in 2024 in Australië, twee weken na een blindedarmoperatie?",["Hij reed voor Ferrari","Hij wist al dat hij moest vertrekken"]),
+V(2024,"Oscar Piastri","Wie won in 2024 in Hongarije zijn eerste Grand Prix?",["Zijn teamgenoot moest hem op teamorder voorlaten","Hij reed voor McLaren"]),
+V(2024,"Lewis Hamilton","Wie kreeg in 2024 de zege in België nadat de winnaar werd gediskwalificeerd?",["De auto van zijn teamgenoot was te licht","Hij reed voor Mercedes"]),
+V(2024,"Max Verstappen","Wie won in 2024 in de regen van Brazilië, na een start vanaf plek zeventien?",["Hij reed voor Red Bull","Hij werd dat jaar voor de vierde keer kampioen"]),
+V(2024,"Franco Colapinto","Welke Argentijn verving in 2024 halverwege het seizoen Logan Sargeant?",["Hij reed voor Williams","Hij was de eerste Argentijn sinds 2001"]),
+V(2024,"Adrian Newey","Welke topontwerper maakte in 2024 bekend Red Bull te verlaten, om later bij Aston Martin te tekenen?",["Hij ontwierp ook de kampioensauto's van Williams en McLaren","Hij komt uit Engeland"],["newey"]),
+V(2025,"Lewis Hamilton","Wie won in 2025 in China zijn eerste sprintrace voor Ferrari?",["Een dag later werd hij gediskwalificeerd","Hij was dat jaar overgestapt"]),
+V(2025,"Kimi Antonelli","Welke tiener werd in 2025 in Miami de jongste polesitter ooit, in de sprintkwalificatie?",["Hij reed voor Mercedes","Hij komt uit Italië"]),
+V(2025,"Christian Horner","Welke teambaas werd in 2025 na twintig jaar ontslagen bij Red Bull?",["Laurent Mekies volgde hem op","Hij is getrouwd met een Spice Girl"],["horner"]),
+V(2025,"Oscar Piastri","Welke coureur leidde in 2025 lange tijd het kampioenschap, maar werd uiteindelijk derde?",["Hij reed voor McLaren","Hij komt uit Australië"]),
+V(2025,"Gabriel Bortoleto","Welke Braziliaanse F2-kampioen debuteerde in 2025 bij Sauber?",["Hij werd gemanaged door Fernando Alonso","Hij werd geboren in 2004"]),
+V(2026,"Ford","Welk Amerikaans merk keerde in 2026 terug als motorpartner van Red Bull?",["Red Bull bouwt de motor zelf in Milton Keynes","Eerder was het merk betrokken bij Stewart en Jaguar"],["red bull ford"]),
+V(2026,"Honda","Welke motorleverancier levert vanaf 2026 aan Aston Martin?",["Eerder won die titels met Red Bull","Het merk komt uit Japan"]),
+V(2026,"Arvid Lindblad","Welke Britse tiener debuteerde in 2026 als enige rookie op de grid?",["Hij rijdt voor Racing Bulls","Hij werd geboren in 2007"]),
+V(2026,"Cadillac","Welk Amerikaans team kwam in 2026 als elfde team op de grid?",["Sergio Pérez is een van de coureurs","Valtteri Bottas is de andere"],["cadillac f1"]),
+V(2026,"Audi","Welk Duits merk nam in 2026 het Sauber-team over?",["Het won vaak de 24 uur van Le Mans","Nico Hülkenberg rijdt er"])
+];
+const JMIN = 2000, JMAX = NU;
+const PRESETS = [["2000-2009","00's"],["2010-2019","10's"],["2020-"+JMAX,"20's"],[JMIN+"-"+JMAX,"Alles"]];
+const ALLES = [];
+COUREURS.forEach((p,i) => ALLES.push({...p, id:"p"+i}));
+VRAGEN.forEach((v,i) => ALLES.push({...v, type:"v", id:"v"+i}));
+const BYID = Object.fromEntries(ALLES.map(x=>[x.id,x]));
+const SPELER = {};
+for (const p of ALLES) if (p.type==="p") SPELER[p.naam] = {alias:[...p.alias]};
+const inJaren = (x, van, tot) => x.type==="p" ? (x.van <= tot && Math.max(x.van, Math.min(x.tot, JMAX)) >= van) : (x.jaar >= van && x.jaar <= tot);
+const AANTAL = (van, tot, t) => ALLES.filter(x => x.type===t && inJaren(x, van, tot)).length;
+const antwoordVan = x => x.type==="p" ? x.naam : x.antwoord;
+const jarenLabel = (van, tot) => van === tot ? String(van) : `${van}–${tot}`;
+
+/* ---------- Hulpfuncties ---------- */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/ø/g,"o").replace(/[ðđ]/g,"d").replace(/æ/g,"ae").replace(/ß/g,"ss").replace(/þ/g,"th").replace(/[^a-z0-9]+/g," ").trim();
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function lev(a,b){
+  if (Math.abs(a.length-b.length)>2) return 9;
+  let prev = Array.from({length:b.length+1},(_,j)=>j);
+  for (let i=1;i<=a.length;i++){ const cur=[i]; for (let j=1;j<=b.length;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1)); prev=cur; }
+  return prev[b.length];
+}
+function isGoed(tekst, item){
+  const t = norm(tekst); if (!t) return false;
+  const naam = antwoordVan(item);
+  return [naam, ...((SPELER[naam]||{}).alias||[]), ...(item.alias||[])].map(norm)
+    .some(a => t===a || (a.length>=5 && lev(t,a) <= (a.length>=10?2:1)));
+}
+function bouwRondes(n, van, tot){
+  const inE = x => inJaren(x, van, tot);
+  const p = shuffle(ALLES.filter(x=>x.type==="p" && inE(x))), v = shuffle(ALLES.filter(x=>x.type==="v" && inE(x))), uit = [], gebruikt = new Set();
+  const pak = lijst => { const i = lijst.findIndex(x=>!gebruikt.has(antwoordVan(x))); if (i<0) return null; const x = lijst.splice(i,1)[0]; gebruikt.add(antwoordVan(x)); return x; };
+  for (let i=0; uit.length<n; i++){ const x = (i%2===1 ? pak(v) : null) || pak(p) || pak(v); if (!x) break; uit.push(x.id); }
+  return uit;
+}
+const maakCode = () => Array.from({length:4},()=>"ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random()*31)]).join("");
+const KLEUREN = ["--tt-y","--tt-c","--tt-m","--tt-g","--tt-r","--tt-b"];
+function klok(){
+  const d = new Date();
+  return d.toLocaleDateString("nl-NL",{weekday:"short",day:"2-digit",month:"short"}).replace(/\./g,"") + " " +
+         d.toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+}
+let eggRid = -1, eggT = 0, autoDict = true, dictT = null;
+function eggTekst(){
+  if (!S || eggRid !== S.rid || !S.item || !BYID[S.item]) return "";
+  return ` <span class="egg-ans">${esc(antwoordVan(BYID[S.item]))}</span>`;
+}
+const kop = midden => `<div class="tt-head"><span><span class="egg" role="presentation">P820</span> <span class="r">F1</span>${eggTekst()}</span><span class="y">${midden}</span><span class="klok">${klok()}</span></div>`;
+
+function leesNaam(){ try { return localStorage.getItem("f1q-naam") || ""; } catch(e){ return ""; } }
+function bewaarNaam(n){ try { localStorage.setItem("f1q-naam", n); } catch(e){} }
+
+/* ---------- Verbinding (Firebase) ---------- */
+const CFG = window.F1Q_CONFIG || {};
+const FB = (window.firebase && CFG.apiKey && CFG.databaseURL) ? window.firebase.initializeApp(CFG) : null;
+const RTDB = FB ? FB.database() : null;
+const aangemeld = FB ? FB.auth().signInAnonymously().then(c => c.user.uid).catch(() => null) : Promise.resolve(null);
+const binnen = (p, ms) => Promise.race([p, new Promise((_, nee) => setTimeout(() => nee(new Error("timeout")), ms))]);
+
+// Room on the Realtime Database: every peer writes a merged presence object to rooms/<code>/peers/<peer>,
+// removed by the server on disconnect. The host's presence carries the full game state.
+// Presence is stored as a JSON string, so arrays and nulls survive the round trip.
+const ROOM = RTDB ? {
+  join: async kanaal => {
+    const uid = await aangemeld;
+    if (!uid) throw new Error("auth");
+    const lijst = RTDB.ref(`rooms/${kanaal}/peers`), mij = lijst.push(), info = RTDB.ref(".info/connected");
+    let staat = {}, peers = [], opPeers = null, opVerbinding = null, weg = false;
+    const schrijf = () => mij.set({by:uid, data:JSON.stringify(staat)});
+    const opLijst = sn => {
+      peers = Object.entries(sn.val() || {}).map(([k, p]) => {
+        let data = {}; try { data = JSON.parse(p.data); } catch(e){}
+        return {peer:k, by:p.by, sameTab:k === mij.key, presence:data};
+      });
+      if (opPeers && !weg) opPeers({peers});
+    };
+    const opInfo = sn => {
+      if (weg) return;
+      const online = sn.val() === true;
+      if (online){ mij.onDisconnect().remove(); schrijf().catch(()=>{}); }
+      if (opVerbinding) opVerbinding(online);
+    };
+    await binnen(mij.onDisconnect().remove().then(schrijf), 10000);
+    lijst.on("value", opLijst, () => { if (opVerbinding) opVerbinding(false); });
+    info.on("value", opInfo);
+    return {
+      onPeers(cb){ opPeers = cb; cb({peers}); },
+      onConnection(cb){ opVerbinding = cb; },
+      presence(deel){ staat = {...staat, ...deel}; return schrijf(); },
+      async leave(){ weg = true; lijst.off("value", opLijst); info.off("value", opInfo); await mij.onDisconnect().cancel(); await mij.remove(); }
+    };
+  }
+} : null;
+
+let HS = [], scoreFout = false, hsTab = "1", hsStop = null, hsAuto = -1;
+const HS_TABS = [["1","Alleen"],["2","2 spelers"],["3","3 spelers"],["4","4+ spelers"]];
+const hsCat = n => String(Math.max(1, Math.min(4, n || 1)));
+function volgHS(){
+  if (!RTDB) return;
+  if (hsStop) hsStop();
+  const tab = hsTab, q = RTDB.ref(`highscores/${tab}`).orderByChild("score").limitToLast(10);
+  const cb = sn => {
+    if (tab !== hsTab) return;
+    const rijen = []; sn.forEach(c => { rijen.push(c.val()); });
+    HS = rijen.sort((a,b) => (b.score - a.score) || (a.ts - b.ts)); vulHS();
+  };
+  q.on("value", cb, () => {});
+  hsStop = () => q.off("value", cb);
+}
+function kiesHS(cat){ if (cat === hsTab) return; hsTab = cat; HS = []; vulHS(); volgHS(); }
+volgHS();
+function vulHS(){
+  const el = document.getElementById("hs"); if (!el) return;
+  if (!RTDB){ el.innerHTML = ""; return; }
+  const rows = HS.length
+    ? HS.map((h,i) => `<div class="tt-row"><span class="${i===0?"y":"c"}">${i+1}.</span><span style="display:flex;justify-content:space-between;gap:.5em"><span>${esc(h.naam || "?")} <span class="c">${esc(h.rondes || "?")} r · ${esc(h.era || "")}${hsTab === "4" && h.spelers ? " · " + esc(h.spelers) + " sp." : ""}</span></span><span class="${i===0?"y":"w"}">${Number(h.score) || 0}</span></span></div>`).join("")
+    : `<p class="c">Nog geen scores in deze lijst. Speel een potje!</p>`;
+  el.innerHTML = `<h2>Top 10 aller tijden</h2>${seg("hstab", HS_TABS, hsTab)}<section class="tt"><div class="tt-band groen"><span class="dh">TOP 10 · ${esc((HS_TABS.find(t => t[0] === hsTab) || [])[1] || "")}</span></div>${rows}</section>`;
+}
+async function bewaarScores(){
+  if (!RTDB || !H) return;
+  const rondes = H.volgorde.length, spelers = H.st.length, cat = hsCat(spelers), era = jarenLabel(setup.van, setup.tot);
+  kiesHS(cat);
+  const uid = await aangemeld; let mislukt = !uid;
+  for (const x of H.st){
+    if (!uid || !(x.s > 0)) continue;
+    const id = String(x.k).replace(/[^A-Za-z0-9_-]/g,"_").slice(0,100) || "speler";
+    const nieuw = {naam:String(x.n).slice(0,16), score:x.s, rondes, spelers, era, ts:Date.now()};
+    try { await RTDB.ref(`highscores/${cat}/${id}`).transaction(oud => (oud && Number(oud.score) >= x.s) ? undefined : nieuw); }
+    catch(e){ mislukt = true; }
+  }
+  if (mislukt){ scoreFout = true; renderAlles(); }
+}
+
+const app = document.getElementById("app");
+let scherm = "start", rol = null, code = "", NR = null, verbonden = true, hostGezien = false, zoekStart = 0;
+let ik = {naam: leesNaam(), key: null};
+let H = null;          // spelmotor, alleen bij de host
+let S = null;          // spelstaat zoals iedereen hem ziet
+let peers = [];
+let lokaal = {rid:-1, lvl:-1, start:0};
+let ui = {cooldown:0, ingestuurd:-1, actieKey:""};
+const setup = {rondes:15, tempo:7, meespelen:true, van:JMIN, tot:JMAX};
+
+async function verbind(c){
+  NR = null; verbonden = true;
+  if (!ROOM) return false;
+  try { NR = await ROOM.join("f1q-" + c.toLowerCase()); } catch(e){ NR = null; return false; }
+  NR.onPeers(ch => { peers = ch.peers; opPeers(); }, () => { verbonden = false; renderAlles(); });
+  NR.onConnection(v => { if (verbonden !== v){ verbonden = v; renderAlles(); } });
+  return true;
+}
+function opPeers(){
+  if (rol === "speler"){
+    const mij = peers.find(p => p.sameTab);
+    if (mij) ik.key = mij.by || mij.peer;
+    const host = peers.find(p => !p.sameTab && p.presence && p.presence.rol === "host" && p.presence.spel);
+    hostGezien = !!host;
+    if (host) zetStaat(host.presence.spel);
+    renderAlles();
+  } else if (rol === "host" && H){
+    let veranderd = false;
+    for (const p of peers){
+      if (p.sameTab || !p.presence || p.presence.rol !== "speler") continue;
+      const k = p.by || p.peer, n = String(p.presence.naam || "Speler").slice(0,16);
+      const e = H.st.find(x => x.k === k);
+      if (!e){ H.st.push({k, n, s:0}); veranderd = true; }
+      else if (e.n !== n){ e.n = n; veranderd = true; }
+      const g = p.presence.goed;
+      if (g && g.rid === H.rid && H.fase === "spel" && verwerkGoed(k, n, String(g.txt || ""))) veranderd = true;
+    }
+    if (veranderd) publiceer(); else renderAlles();
+  }
+}
+function zetStaat(s){
+  if (!s) return;
+  if (s.rid !== lokaal.rid || s.lvl !== lokaal.lvl) lokaal = {rid:s.rid, lvl:s.lvl, start:Date.now()};
+  if (!S || s.rid !== S.rid) ui.ingestuurd = -1;
+  S = s;
+}
+
+/* ---------- Spelmotor (host) ---------- */
+function publiceer(){
+  const s = {fase:H.fase, rid:H.rid, nr:H.nr, tot:H.volgorde.length || setup.rondes, item:H.item, lvl:H.lvl, max:H.max,
+             tempo:H.tempo, win:H.win, st:H.st.slice(0,30), host:ik.naam, jaren:jarenLabel(setup.van, setup.tot)};
+  zetStaat(s);
+  if (NR) NR.presence({rol:"host", naam:ik.naam, spel:s}).catch(()=>{});
+  renderAlles();
+}
+function startSpel(){
+  H.volgorde = bouwRondes(setup.rondes, setup.van, setup.tot); H.tempo = setup.tempo; H.nr = 0; scoreFout = false;
+  H.st.forEach(x => x.s = 0);
+  volgendeRonde();
+}
+function volgendeRonde(){
+  if (H.nr >= H.volgorde.length){ H.fase = "einde"; H.item = null; publiceer(); bewaarScores(); return; }
+  H.item = H.volgorde[H.nr]; H.nr++; H.rid++;
+  H.max = BYID[H.item].type === "p" ? 4 : 3; H.lvl = 1; H.win = null; H.fase = "spel"; H.hintStart = Date.now();
+  publiceer();
+}
+function volgendeHint(){
+  if (H.lvl < H.max){ H.lvl++; H.hintStart = Date.now(); } else { H.fase = "onthuld"; H.win = null; }
+  publiceer();
+}
+function verwerkGoed(k, n, txt){
+  if (H.fase !== "spel" || !isGoed(txt, BYID[H.item])) return false;
+  const p = H.max - H.lvl + 1;
+  let e = H.st.find(x => x.k === k); if (!e){ e = {k, n, s:0}; H.st.push(e); }
+  e.s += p; H.win = {k, n, p}; H.fase = "onthuld";
+  return true;
+}
+setInterval(() => {
+  if (H && H.fase === "spel" && Date.now() - H.hintStart >= H.tempo*1000) volgendeHint();
+  updateBalk();
+}, 200);
+setInterval(() => { app.querySelectorAll(".klok").forEach(k => k.textContent = klok()); }, 1000);
+
+/* ---------- Acties ---------- */
+function naamOk(){
+  const n = (document.getElementById("naam")?.value || "").trim().slice(0,16);
+  if (!n){ renderStart("Vul eerst je naam in."); return false; }
+  ik.naam = n; bewaarNaam(n); return true;
+}
+function bezig(tekst){ scherm = "bezig"; app.dataset.v = "bezig"; app.innerHTML = `<section class="tt">${kop("")}<p class="y flash">${esc(tekst)}</p></section>`; }
+
+async function hostStart(){
+  if (!naamOk()) return;
+  rol = "host"; code = maakCode();
+  bezig("Spel aanmaken…");
+  ik.key = (await aangemeld) || "host";
+  H = {fase:"lobby", rid:0, nr:0, item:null, lvl:0, max:0, tempo:setup.tempo, win:null, st:[], volgorde:[], hintStart:0};
+  if (setup.meespelen) H.st.push({k:ik.key, n:ik.naam, s:0});
+  await verbind(code);
+  scherm = "spel"; publiceer();
+}
+async function meedoen(){
+  if (!naamOk()) return;
+  const c = (document.getElementById("code")?.value || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if (c.length !== 4) return renderStart("Vul de code van 4 tekens in.");
+  code = c; rol = "speler";
+  bezig("Verbinden…");
+  if (!ROOM) return renderStart("Geen verbinding met de spelserver. Meedoen lukt nu niet.");
+  if (!(await verbind(code))) return renderStart("Verbinden lukte niet. Probeer het opnieuw.");
+  NR.presence({rol:"speler", naam:ik.naam}).catch(()=>{});
+  zoekStart = Date.now(); scherm = "spel"; renderAlles();
+  setTimeout(renderAlles, 6000);
+}
+function verlaten(){
+  if (NR) NR.leave().catch(()=>{});
+  NR = null; H = null; S = null; rol = null; peers = []; hostGezien = false;
+  lokaal = {rid:-1, lvl:-1, start:0}; ui = {cooldown:0, ingestuurd:-1, actieKey:""};
+  renderStart();
+}
+function raad(auto){
+  const inp = document.getElementById("gok"), m = document.getElementById("melding");
+  if (!inp || !S || S.fase !== "spel") return;
+  const txt = inp.value.trim(); if (!txt) return;
+  if (Date.now() < ui.cooldown){ m.textContent = "Even wachten…"; m.className = "melding"; return; }
+  const goed = isGoed(txt, BYID[S.item]) ? txt : undefined;
+  if (goed !== undefined){
+    if (rol === "host"){ if (verwerkGoed(ik.key, ik.naam, goed)) publiceer(); }
+    else { ui.ingestuurd = S.rid; if (NR) NR.presence({goed:{rid:S.rid, txt:goed.slice(0,60)}}).catch(()=>{}); renderAlles(); }
+  } else {
+    if (auto){ m.textContent = `${txt} is het niet. Probeer het nog eens.`; }
+    else { ui.cooldown = Date.now() + 2000; m.textContent = `${txt} is het niet. Over 2 seconden mag je weer.`; }
+    m.className = "melding fout";
+    inp.select();
+  }
+}
+
+app.addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if (!b || b.disabled) return;
+  const a = b.dataset.act, v = b.dataset.v;
+  if (a === "host") hostStart();
+  else if (a === "join") meedoen();
+  else if (a === "rondes"){ setup.rondes = +v; renderAlles(); }
+  else if (a === "tempo"){ setup.tempo = +v; renderAlles(); }
+  else if (a === "jaren"){ const [x,y] = v.split("-").map(Number); setup.van = x; setup.tot = y; renderAlles(); }
+  else if (a === "hstab"){ kiesHS(v); }
+  else if (a === "mee"){
+    setup.meespelen = v === "1";
+    H.st = H.st.filter(x => x.k !== ik.key);
+    if (setup.meespelen) H.st.unshift({k:ik.key, n:ik.naam, s:0});
+    publiceer();
+  }
+  else if (a === "start") startSpel();
+  else if (a === "hint") volgendeHint();
+  else if (a === "volgende") volgendeRonde();
+  else if (a === "lobby"){ H.fase = "lobby"; H.win = null; H.item = null; H.volgorde = []; H.st.forEach(x => x.s = 0); publiceer(); }
+  else if (a === "verlaten") verlaten();
+});
+app.addEventListener("click", e => {
+  if (!e.target.closest || !e.target.closest(".egg")) return;
+  const nu = Date.now();
+  if (nu - eggT < 450){
+    eggT = 0;
+    if (S && S.item){ eggRid = eggRid === S.rid ? -1 : S.rid; renderAlles(); }
+  } else eggT = nu;
+});
+app.addEventListener("change", e => {
+  const id = e.target.id;
+  if (id !== "jvan" && id !== "jtot") return;
+  const w = +e.target.value;
+  if (id === "jvan"){ setup.van = w; if (setup.tot < w) setup.tot = w; }
+  else { setup.tot = w; if (setup.van > w) setup.van = w; }
+  renderAlles();
+});
+app.addEventListener("submit", e => { e.preventDefault(); if (e.target.id === "raad") raad(); else if (e.target.id === "meedoen") meedoen(); });
+
+/* ---------- Weergave ---------- */
+function rij(label, waarde, kleur){
+  return `<div class="tt-row"><span class="tt-lab">${label}</span><span class="${waarde?kleur:""}">${waarde ? esc(waarde) : '<span class="tt-hidden">▒▒▒▒▒▒▒▒▒▒</span>'}</span></div>`;
+}
+function paneelPaspoort(r, L, open){
+  const z = n => open || L >= n;
+  return `<div class="tt-band"><span class="dh">RACEPASPOORT</span></div>
+    ${rij("Geboren", z(1) ? `${r.jaar} (${new Date().getFullYear() - r.jaar} jaar)` : null, "y")}
+    ${rij("In F1", z(1) ? (r.tot >= JMAX ? `${r.van}–nu` : jarenLabel(r.van, r.tot)) : null, "w")}
+    ${rij("Land", z(2) ? r.land : null, "g")}
+    ${rij("Weetje", z(3) ? r.weetje : null, "w")}
+    <div class="tt-sub">Teams</div>
+    ${z(4) ? r.clubs.slice(-3).map(([j,c]) => `<div class="tt-club"><span class="m">${esc(j)}</span><span>${esc(c)}</span></div>`).join("")
+           : '<div class="tt-club"><span class="tt-hidden">▒▒▒▒▒▒▒</span><span class="tt-hidden">▒▒▒▒▒▒▒▒▒▒▒▒</span></div>'.repeat(3)}`;
+}
+function paneelVraag(r, L, open){
+  return `<div class="tt-band roze"><span class="dh">QUIZVRAAG</span></div>
+    <p class="tt-vraag">${esc(r.vraag)}</p>
+    ${r.hints.map((h,i) => rij(`Hint ${i+1}`, (open || L >= i+2) ? h : null, "y")).join("")}`;
+}
+function standLijst(){
+  const online = new Set(peers.map(p => p.by || p.peer));
+  if (rol === "host") online.add(ik.key);
+  const kleur = new Map(S.st.map((x,i) => [x.k, KLEUREN[i % KLEUREN.length]]));
+  const lijst = S.st.slice().sort((a,b) => b.s - a.s);
+  if (!lijst.length) return `<p class="hint">Nog niemand aangemeld.</p>`;
+  return `<ul class="stand">${lijst.map(x => `<li class="${x.k===ik.key?"ik":""}"><span class="chip" style="--c:var(${kleur.get(x.k)})"></span>
+    <span>${esc(x.n)}${x.k===ik.key?" (jij)":""}${NR && !online.has(x.k) ? ' <span class="weg">weg</span>' : ""}</span><span class="pt">${x.s}</span></li>`).join("")}</ul>`;
+}
+function jaarOpties(huidig){
+  let o = ""; for (let j = JMIN; j <= JMAX; j++) o += `<option value="${j}" ${j===huidig?"selected":""}>${j}</option>`; return o;
+}
+function telTekst(){
+  const c = AANTAL(setup.van, setup.tot, "p"), v = AANTAL(setup.van, setup.tot, "v"), n = c + v;
+  return `<p class="hint">${c} coureurs en ${v} vragen in ${jarenLabel(setup.van, setup.tot)}.</p>` +
+    (n < setup.rondes ? `<p class="fout">Te weinig voor ${setup.rondes} rondes: het spel wordt ${n} rondes.</p>` : "");
+}
+function seg(act, opties, huidig){
+  return `<div class="seg">${opties.map(([v,l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${String(v)===String(huidig)}">${l}</button>`).join("")}</div>`;
+}
+function banner(){
+  if (rol === "speler" && S && !hostGezien) return `<p class="banner">De host is niet meer verbonden. Wacht even of verlaat het spel.</p>`;
+  if (NR && !verbonden) return `<p class="banner">Verbinding weggevallen. Opnieuw verbinden…</p>`;
+  return "";
+}
+
+function renderStart(fout = ""){
+  scherm = "start"; app.dataset.v = "start";
+  app.innerHTML = `<section class="tt">${kop("")}
+      <div class="tt-band"><span class="dh">RAAD DE COUREUR</span></div>
+      <p class="c">Formule 1, ${JMIN} tot nu. ${COUREURS.length} coureurs en ${VRAGEN.length} weetjes. Kies straks je seizoenen.</p>
+      <p>Iedereen speelt op zijn eigen telefoon. De hints komen één voor één binnen.</p>
+      <p>Typ het antwoord: meestal een coureur, soms een team of circuit. Wie het als eerste goed heeft, pakt de punten.</p>
+      <p class="g">Hoe eerder je hem hebt, hoe meer punten.</p>
+    </section>
+    <section class="instel">
+      <label class="veld">Jouw naam<input id="naam" maxlength="16" autocomplete="nickname" value="${esc(ik.naam)}" placeholder="Bijvoorbeeld Mad Max"></label>
+      <div class="twee">
+        <div class="blok"><h2>Spel starten</h2><p class="hint">Je krijgt een code die je deelt met de anderen.</p>
+          <div><button class="knop hoofd" data-act="host">Nieuw spel</button></div></div>
+        <form class="blok" id="meedoen"><h2>Meedoen</h2>
+          <label class="veld">Code<input id="code" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD" value="${esc(code)}"></label>
+          <div><button class="knop hoofd" type="submit">Meedoen</button></div></form>
+      </div>
+      ${fout ? `<p class="fout" role="alert">${esc(fout)}</p>` : ""}
+    </section>
+    <div id="hs"></div>`;
+  vulHS();
+}
+
+function renderAlles(){
+  if (scherm !== "spel") return;
+  if (!S) return renderZoeken();
+  if (S.fase === "lobby") return renderLobby();
+  if (S.fase === "einde") return renderEinde();
+  renderSpel();
+}
+function renderZoeken(){
+  app.dataset.v = "zoeken";
+  const lang = Date.now() - zoekStart > 5500;
+  app.innerHTML = `<section class="tt">${kop("code " + esc(code))}
+      ${lang ? `<p class="r">Geen spel gevonden met code ${esc(code)}.</p><p>Controleer de code, of vraag de host of het spel nog openstaat.</p>`
+             : `<p class="y flash">Spel ${esc(code)} zoeken…</p>`}</section>
+    <div class="knoppen"><button class="knop" data-act="verlaten">Terug</button></div>`;
+}
+function renderLobby(){
+  app.dataset.v = "lobby";
+  const host = rol === "host";
+  app.innerHTML = `${banner()}<section class="tt">${kop("lobby")}
+      <div class="tt-band"><span class="dh">SPELCODE</span></div>
+      <div class="tt-code">${esc(code)}</div>
+      ${host ? (NR ? `<p>Laat de anderen deze pagina openen en de code invullen.</p>`
+                   : `<p class="r">Geen verbinding met anderen. Je kunt wel alleen oefenen.</p>`)
+             : `<p>Je doet mee. Wachten tot <span class="y">${esc(S.host || "de host")}</span> het spel start…</p>${S.jaren ? `<p>Seizoenen: <span class="c">${esc(S.jaren)}</span></p>` : ""}`}
+    </section>
+    <section class="instel">
+      <div><h2>Spelers (${S.st.length})</h2>${standLijst()}</div>
+      ${host ? `
+      <fieldset><legend>Seizoenen</legend>${seg("jaren",PRESETS,setup.van+"-"+setup.tot)}
+        <div class="jaren"><label class="veld">Van<select id="jvan">${jaarOpties(setup.van)}</select></label><label class="veld">Tot en met<select id="jtot">${jaarOpties(setup.tot)}</select></label></div>
+        ${telTekst()}</fieldset>
+      <fieldset><legend>Rondes</legend>${seg("rondes",[[10,"10"],[15,"15"],[20,"20"]],setup.rondes)}</fieldset>
+      <fieldset><legend>Tijd per hint</legend>${seg("tempo",[[9,"Rustig, 9 s"],[7,"Normaal, 7 s"],[5,"Snel, 5 s"]],setup.tempo)}</fieldset>
+      <fieldset><legend>Dit toestel</legend>${seg("mee",[[1,"Ik speel mee"],[0,"Alleen als scherm"]],setup.meespelen?1:0)}</fieldset>
+      <div class="knoppen"><button class="knop hoofd" data-act="start" ${S.st.length?"":"disabled"}>Start het spel</button><button class="knop stil" data-act="verlaten">Stoppen</button></div>`
+      : `<div class="knoppen"><button class="knop stil" data-act="verlaten">Verlaten</button></div>`}
+    </section>`;
+}
+function renderEinde(){
+  app.dataset.v = "einde";
+  const stand = S.st.slice().sort((a,b) => b.s - a.s);
+  const gelijk = stand.length > 1 && stand[0].s === stand[1].s;
+  app.innerHTML = `${banner()}<section class="tt">${kop("eindstand")}
+      <div class="tt-band"><span class="dh">EINDSTAND</span></div>
+      ${stand.map((s,p) => `<div class="tt-row"><span class="${p===0?"y":"c"}">${p+1}.</span><span style="display:flex;justify-content:space-between;gap:.5em"><span>${esc(s.n)}</span><span class="${p===0?"y":"w"}">${s.s}</span></span></div>`).join("")}
+      ${stand.length ? `<p class="${gelijk?"m":"g"} flash">${gelijk ? "Gelijkspel aan de top" : `${esc(stand[0].n)} wint`}</p>` : ""}
+    </section>
+    <div class="knoppen">${rol === "host" ? `<button class="knop hoofd" data-act="lobby">Nieuw potje</button><button class="knop stil" data-act="verlaten">Stoppen</button>`
+      : `<p class="hint">Wachten op een nieuw potje…</p><button class="knop stil" data-act="verlaten">Verlaten</button>`}</div>
+    ${scoreFout && rol === "host" ? `<p class="fout">Scores konden niet worden opgeslagen in de top 10.</p>` : ""}
+    <div id="hs"></div>`;
+  if (hsAuto !== S.rid){ hsAuto = S.rid; kiesHS(hsCat(S.st.length)); }
+  vulHS();
+}
+function renderSpel(){
+  if (app.dataset.v !== "spel"){
+    app.dataset.v = "spel"; ui.actieKey = "";
+    app.innerHTML = `<div id="banner"></div><section class="tt" id="paneel" aria-live="polite"></section><div id="actie"></div><div id="stand"></div>`;
+  }
+  const item = BYID[S.item], open = S.fase === "onthuld";
+  let voet;
+  if (!open){
+    voet = `<div class="tt-foot"><span class="balk"></span><span><span class="c">hint ${S.lvl}/${S.max}</span> <span class="m">${S.max-S.lvl+1} pnt</span></span></div>`;
+  } else {
+    const wie = S.win ? `<div class="g">${esc(S.win.n)} pakt ${S.win.p} ${S.win.p===1?"punt":"punten"}</div>` : `<div class="r">Niemand had het</div>`;
+    voet = `<div class="tt-band groen" style="margin-top:.5em">ANTWOORD</div><div class="tt-naam flash">${esc(antwoordVan(item))}</div>${wie}`;
+  }
+  document.getElementById("banner").innerHTML = banner();
+  document.getElementById("paneel").innerHTML = kop(`ronde ${S.nr}/${S.tot}`) +
+    (item.type === "p" ? paneelPaspoort(item, S.lvl, open) : paneelVraag(item, S.lvl, open)) + voet;
+  document.getElementById("stand").innerHTML = `<h2>Stand</h2>${standLijst()}`;
+
+  const speelt = rol === "speler" || setup.meespelen;
+  const key = [S.fase, S.rid, ui.ingestuurd === S.rid, rol, speelt, S.win ? S.win.k : ""].join("|");
+  if (key === ui.actieKey){ updateBalk(); return; }
+  ui.actieKey = key;
+  const actie = document.getElementById("actie");
+  const hostKnop = rol === "host" ? `<button class="knop stil" data-act="hint">${S.lvl < S.max ? "Volgende hint" : "Antwoord tonen"}</button>` : "";
+  if (!open){
+    if (speelt && ui.ingestuurd !== S.rid){
+      actie.innerHTML = `<form id="raad" class="raad" autocomplete="off">
+          <input id="gok" type="text" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="Wie of wat is het?" aria-label="Jouw antwoord" maxlength="40">
+          <button class="knop hoofd" type="submit">Raad</button></form>
+        <p class="melding" id="melding" role="status"></p>
+        <label class="hint dict"><input type="checkbox" id="autodict" ${autoDict ? "checked" : ""}> Dicteren: automatisch versturen na 1 seconde stilte</label>
+        <div class="knoppen">${hostKnop}</div>`;
+      const gokEl = document.getElementById("gok"); gokEl.focus({preventScroll:true});
+      clearTimeout(dictT); let vorigeLen = 0;
+      gokEl.addEventListener("input", ev => {
+        clearTimeout(dictT);
+        const sprong = gokEl.value.length - vorigeLen; vorigeLen = gokEl.value.length;
+        const dicteer = /dictation/i.test(ev.inputType || "") || sprong >= 3;
+        if (!autoDict || !dicteer || !gokEl.value.trim()) return;
+        dictT = setTimeout(() => { if (document.getElementById("gok") === gokEl && gokEl.value.trim()) raad(true); }, 1000);
+      });
+      document.getElementById("autodict").addEventListener("change", ev => { autoDict = ev.target.checked; clearTimeout(dictT); });
+    } else if (speelt){
+      actie.innerHTML = `<p class="goed">Goed! Even kijken of je de snelste was…</p><div class="knoppen">${hostKnop}</div>`;
+    } else {
+      actie.innerHTML = `<div class="knoppen">${hostKnop.replace("knop stil","knop")}<button class="knop stil" data-act="verlaten">Stoppen</button></div>`;
+    }
+  } else {
+    let tekst;
+    if (!S.win) tekst = "Niemand had het.";
+    else if (S.win.k === ik.key) tekst = `Jij was de snelste: +${S.win.p}`;
+    else tekst = `${S.win.n} was het snelst.` + (ui.ingestuurd === S.rid ? " Jij had het ook goed, net te laat." : "");
+    const laatste = S.nr >= S.tot;
+    actie.innerHTML = `<p class="uitslag">${esc(tekst)}</p><div class="knoppen">` +
+      (rol === "host" ? `<button class="knop hoofd" data-act="volgende">${laatste ? "Bekijk de eindstand" : "Volgende ronde"}</button><button class="knop stil" data-act="verlaten">Stoppen</button>`
+                      : `<span class="hint">Wachten op de volgende ronde…</span><button class="knop stil" data-act="verlaten">Verlaten</button>`) + `</div>`;
+  }
+  updateBalk();
+}
+function updateBalk(){
+  const el = app.querySelector(".balk"); if (!el || !S || S.fase !== "spel") return;
+  const t = (Date.now() - lokaal.start) / 1000;
+  const vol = Math.max(0, Math.min(14, Math.round((1 - t / S.tempo) * 14)));
+  el.innerHTML = `<span class="g">${"█".repeat(vol)}</span><span class="dim">${"█".repeat(14-vol)}</span>`;
+}
+
+renderStart();
+</script>
+
+</body></html>

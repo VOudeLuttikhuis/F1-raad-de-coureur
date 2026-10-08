@@ -1,0 +1,8 @@
+{
+  "name": "raad-de-coureur",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/write-config.js",
+    "dev": "node scripts/write-config.js && npx --yes serve public"
+  }
+}

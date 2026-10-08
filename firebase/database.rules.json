@@ -1,0 +1,36 @@
+{
+  "rules": {
+    "rooms": {
+      "$room": {
+        ".read": "auth != null",
+        "peers": {
+          "$peer": {
+            ".write": "auth != null && (!data.exists() || data.child('by').val() === auth.uid) && (!newData.exists() || newData.child('by').val() === auth.uid)",
+            ".validate": "newData.hasChildren(['by', 'data']) && newData.child('data').isString() && newData.child('data').val().length < 20000",
+            "by": { ".validate": "newData.isString()" },
+            "data": { ".validate": true },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    },
+    "highscores": {
+      ".read": true,
+      "$cat": {
+        ".indexOn": ["score"],
+        ".validate": "$cat.matches(/^[1-4]$/)",
+        "$player": {
+          ".write": "auth != null && newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val())",
+          ".validate": "newData.hasChildren(['naam', 'score', 'rondes', 'spelers', 'era', 'ts']) && $player.length <= 100",
+          "naam": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
+          "score": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 80" },
+          "rondes": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 20" },
+          "spelers": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 100" },
+          "era": { ".validate": "newData.isString() && newData.val().length <= 20" },
+          "ts": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+          "$other": { ".validate": false }
+        }
+      }
+    }
+  }
+}
